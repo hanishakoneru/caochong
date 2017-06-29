@@ -20,7 +20,8 @@ The distributed cluster in Docker containers outperforms its counterparts:
 The following illustrates the basic procedure on how to use this tool. It provides two ways to set up Hadoop and Spark cluster: **from-ambari** and **from-source**.
 
 ### From Source
-The only one step is to run from-source/run.sh.
+Set the HADOOP_SRC_HOME in run.sh to the parent path of the un-tarred hadoop SNAPSHOT directory
+Then the only one step is to run from-source/run.sh.
 
 ```
 $ ./run.sh --help
