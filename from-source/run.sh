@@ -10,6 +10,17 @@ HADOOP_HOME=/hadoop
 
 MODE=hadoop
 
+MASTER_VOLUME=/data/disk1/docker1
+SLAVE_VOLUMES=('/data/disk1/docker2',
+               '/data/disk1/docker3',
+               '/data/disk1/docker4',
+               '/data/disk2/docker2',
+	       '/data/disk2/docker3',
+               '/data/disk2/docker4',
+               '/data/disk3/docker2',
+               '/data/disk3/docker3',
+               '/data/disk3/docker4')
+
 function usage() {
     echo "Usage: ./run.sh hadoop|spark [--rebuild] [--nodes=N]"
     echo
@@ -110,15 +121,16 @@ docker rm -f $(docker ps -a -q -f "name=caochong") 2>&1 > /dev/null
 
 # launch master container
 echo "Launch master container"
-master_id=$(docker run -d --net caochong --name caochong-master caochong-$MODE)
+master_id=$(docker run -d -v $MASTER_VOLUME/name:/hadoop-data/name -v $MASTER_VOLUME/data:/hadoop-data/data --net caochong --name caochong-master caochong-$MODE)
 echo ${master_id:0:12} > hosts
 echo "Master " ${master_id:0:12}
-docker exec $master_id service ssh restart
+docker exec -t $master_id service ssh restart
+docker exec -t $master_id chown -R hdfs /hadoop-data
 # docker cp sshConfigTmp ${master_id:0:12}:/root/.ssh/config
 # docker exec -it ${master_id:0:12} chown root.root /root/.ssh/config 
 for i in $(seq $((N-1)));
 do
-    container_id=$(docker run -d --net caochong caochong-$MODE)
+    container_id=$(docker run -d -v ${SLAVE_VOLUMES[$i]}/data:/hadoop-data/data --net caochong caochong-$MODE)
     echo "Slave "${container_id:0:12}
     echo ${container_id:0:12} >> hosts  
     # docker exec -it $master_id ssh-copy-id $container_id
@@ -127,10 +139,13 @@ done
 
 # Copy the workers file to the master container
 docker cp hosts $master_id:$HADOOP_HOME/etc/hadoop/workers
+echo "Copied workers"
 
 # Start hdfs and yarn services
-docker exec -it $master_id $HADOOP_HOME/bin/hdfs namenode -format
+docker exec -it -u root $master_id $HADOOP_HOME/bin/hdfs namenode -format
+echo "Formatted Namenode"
 docker exec -it $master_id $HADOOP_HOME/sbin/start-dfs.sh
+echo "Started dfs"
 # echo "Starting yarn"
 # docker exec -it $master_id $HADOOP_HOME/sbin/start-yarn.sh
 
