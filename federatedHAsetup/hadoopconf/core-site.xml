@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+	<property>
+		<name>fs.defaultFS</name>
+		<value>hdfs://ns2</value>
+	</property>
+	<property>    
+	   	<name>fs.viewfs.mounttable.default.link./cluster1</name>    
+	    	<value>hdfs://ns1/</value>  
+	</property>
+	<property>    
+    		<name>fs.viewfs.mounttable.default.link./cluster2</name>    
+	   	<value>hdfs://ns2/</value>  
+	</property>
+	<property>
+		<name>dfs.journalnode.edits.dir</name>
+		<value>/data/jn</value>
+	</property>
+	<property>    
+	  	<name>dfs.client.retry.policy.enabled</name>    
+    		<value>true</value>
+	</property>
+	<property>
+		<name>hadoop.caller.context.enabled</name>
+		<value>true</value>
+	</property>
+   	<property>
+    		<name>ha.zookeeper.quorum</name>
+    		<value>mycluster-node-1:2181,mycluster-node-2:2181,mycluster-node-3:2181</value>
+  	</property>
+</configuration>
