@@ -103,8 +103,8 @@ cat > tmp/Dockerfile << EOF
         USER root
 EOF
         echo "Building image for hadoop"
-        docker rmi -f caochong-hadoop
-        docker build -t caochong-hadoop tmp
+        docker rmi -f caochong-hadoop $CLUSTER
+        docker build -t caochong-hadoop tmp --tag $CLUSTER
 
         # Cleanup
         rm -rf tmp
@@ -163,7 +163,10 @@ do
     	fi
     fi
     
-    container_id=$(docker run -d -v ${VOLUMES[$((i-1))]}/nn:/data/nn -v ${VOLUMES[$((i-1))]}/dn:/data/dn -v ${VOLUMES[$((i-1))]}/jn:/data/jn --net caochong --name $CLUSTER-node-$i caochong-hadoop)
+    port=$((i+9869))
+    port_router=$((i+50070))
+    
+    container_id=$(docker run -d -v ${VOLUMES[$((i-1))]}/nn:/data/nn -v ${VOLUMES[$((i-1))]}/dn:/data/dn -v ${VOLUMES[$((i-1))]}/jn:/data/jn -p 127.0.0.1:$port:9870 -p 127.0.0.1:$port_router:50071 --net caochong --name $CLUSTER-node-$i caochong-hadoop)
     
     echo "Node "$i "=>" ${container_id:0:12}
     NODES[$INDEX]="$CLUSTER"-node-"$i ${container_id:0:12}"
@@ -178,25 +181,25 @@ done
 # Copy the workers file to the master container
 docker cp hosts $CLUSTER-node-1:$HADOOP_HOME/etc/hadoop/workers
 docker cp hosts $CLUSTER-node-3:$HADOOP_HOME/etc/hadoop/workers
-echo "Copied workers to Node 1 => NameNode"
 
 echo "----------Starting journalnodes----------"
-docker exec -it -u root $CLUSTER-node-3 $HADOOP_HOME/bin/hdfs --daemon start journalnode
-docker exec -it -u root $CLUSTER-node-4 $HADOOP_HOME/bin/hdfs --daemon start journalnode
-docker exec -it -u root $CLUSTER-node-5 $HADOOP_HOME/bin/hdfs --daemon start journalnode
+docker exec -it -u root $CLUSTER-node-3 $HADOOP_HOME/bin/hdfs --daemon start journalnode >> jn1.log
+docker exec -it -u root $CLUSTER-node-4 $HADOOP_HOME/bin/hdfs --daemon start journalnode >> jn2.log
+docker exec -it -u root $CLUSTER-node-5 $HADOOP_HOME/bin/hdfs --daemon start journalnode >> jn3.log
+sleep 5
 
 echo "----------Formatting Namenodes----------"
 CLUSTER_ID=CID-$(uuidgen)
-docker exec -it -u root $CLUSTER-node-1 $HADOOP_HOME/bin/hdfs namenode -format -clusterId $CLUSTER_ID
-docker exec -it -u root $CLUSTER-node-3 $HADOOP_HOME/bin/hdfs namenode -format -clusterId $CLUSTER_ID
+docker exec -it -u root $CLUSTER-node-1 $HADOOP_HOME/bin/hdfs namenode -format -clusterId $CLUSTER_ID >> nn1-format.log
+docker exec -it -u root $CLUSTER-node-3 $HADOOP_HOME/bin/hdfs namenode -format -clusterId $CLUSTER_ID >> nn3-format.log
 
 echo "----------Start Namenodes----------"
-docker exec -it -u root $CLUSTER-node-1 $HADOOP_HOME/bin/hdfs --daemon start namenode
-docker exec -it -u root $CLUSTER-node-3 $HADOOP_HOME/bin/hdfs --daemon start namenode
+docker exec -it -u root $CLUSTER-node-1 $HADOOP_HOME/bin/hdfs --daemon start namenode >> nn1.log
+docker exec -it -u root $CLUSTER-node-3 $HADOOP_HOME/bin/hdfs --daemon start namenode >> nn3.log
 
 echo "----------Bootstraping Standby Namenodes----------"
-docker exec -it -u root $CLUSTER-node-2 $HADOOP_HOME/bin/hdfs namenode -bootstrapStandby
-docker exec -it -u root $CLUSTER-node-4 $HADOOP_HOME/bin/hdfs namenode -bootstrapStandby
+docker exec -it -u root $CLUSTER-node-2 $HADOOP_HOME/bin/hdfs namenode -bootstrapStandby >> nn2.log
+docker exec -it -u root $CLUSTER-node-4 $HADOOP_HOME/bin/hdfs namenode -bootstrapStandby >> nn4.log
 
 echo "----------Starting dfs----------"
 docker exec -it $CLUSTER-node-1 $HADOOP_HOME/sbin/start-dfs.sh
@@ -208,3 +211,4 @@ docker exec -it -u hdfs $CLUSTER-node-1 $HADOOP_HOME/bin/hdfs haadmin -ns ns2 -t
 print_node_info
 
 docker exec -it -u hdfs $CLUSTER-node-1 /bin/bash
+
