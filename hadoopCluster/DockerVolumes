@@ -1,12 +1,7 @@
-/Users/hkoneru/data/disk1/docker1
-/Users/hkoneru/data/disk1/docker2
-/Users/hkoneru/data/disk1/docker3
-/Users/hkoneru/data/disk2/docker1
-/Users/hkoneru/data/disk2/docker2
-/Users/hkoneru/data/disk2/docker3
-/Users/hkoneru/data/disk3/docker1
-/Users/hkoneru/data/disk3/docker2
-/Users/hkoneru/data/disk3/docker3
-/Users/hkoneru/data/disk4/docker1
-/Users/hkoneru/data/disk4/docker2
-/Users/hkoneru/data/disk4/docker3
+# List of volumes for each of the docker containers.
+# This file should have one line for each container.
+# Lines beginning with '#' are ignored.
+# Empty lines are not supported.
+/tmp/docker-hadoop/data1
+/tmp/docker-hadoop/data2
+/tmp/docker-hadoop/data3

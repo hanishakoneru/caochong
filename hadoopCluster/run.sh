@@ -3,9 +3,12 @@
 INDEX=0
 N=3
 CLUSTER='mycluster'
+
+# HADOOP_HOME for the containers.
 HADOOP_HOME=/hadoop
+
+# Volumes read from DockerFile
 VOLUMES=()
-NUM_VOLUMES=0
 
 function usage() {
     echo "Usage: ./run.sh --hadoopDir=<path-to-hadoop-home> [--cluster=CLUSTER_NAME] [--nodes=N] [--rebuild] [--format]"
@@ -57,11 +60,17 @@ function parse_arguments() {
 }
 
 function read_volumes() {
+    if [[ ! -f DockerVolumes ]]; then
+        echo "File DockerVolumes does not exist."
+        exit 2
+    fi
+    local REGEX_COMMENT="^#"
 	while IFS='' read -r line || [[ -n "$line" ]]; do
-		VOLUMES[$INDEX]=$line
-		INDEX=$((INDEX+1))
+        if ! [[ ${line} =~ ${REGEX_COMMENT} ]]; then
+    		VOLUMES[${INDEX}]=${line}
+    		INDEX=$((INDEX+1))
+        fi
 	done < DockerVolumes
-	NUM_VOLUMES=${#VOLUMES[@]}
 }
 
 function build_hadoop() {
@@ -123,7 +132,7 @@ function print_node_info() {
 
 parse_arguments $@
 read_volumes
-if [ "$NUM_VOLUMES" -lt "$N" ]; then
+if [[ "${#VOLUMES[@]}" -lt "$N" ]]; then
 	echo "Num of volumes configured is less than number of nodes"
 	echo "Add more volumes to DockerVolumes file"
 	exit 1
@@ -182,13 +191,16 @@ done
 docker cp hosts $CLUSTER-node-1:$HADOOP_HOME/etc/hadoop/workers
 docker cp hosts $CLUSTER-node-1:$HADOOP_HOME/etc/hadoop/slaves
 
-#echo "----------Formatting Namenodes----------"
-#docker exec -it -u root $CLUSTER-node-1 $HADOOP_HOME/bin/hdfs namenode -format
+if [[ "${FORMAT}" = "1" ]]; then
+    echo "----------Formatting the Namenode----------"
+    docker exec -it -u root $CLUSTER-node-1 $HADOOP_HOME/bin/hdfs namenode -format
 
-#echo "----------Starting dfs----------"
-#docker exec -it $CLUSTER-node-1 $HADOOP_HOME/sbin/start-dfs.sh
+    echo "----------Starting dfs----------"
+    docker exec -it $CLUSTER-node-1 $HADOOP_HOME/sbin/start-dfs.sh
+fi
 
 print_node_info
 
+# Launch a shell on the first cluster node.
 docker exec -it -u hdfs $CLUSTER-node-1 /bin/bash
 
