@@ -11,13 +11,13 @@ HADOOP_HOME=/hadoop
 VOLUMES=()
 
 function usage() {
-    echo "Usage: ./run.sh --hadoopDir=<path-to-hadoop-home> [--cluster=CLUSTER_NAME] [--nodes=N] [--rebuild] [--format]"
+    echo "Usage: ./run.sh --hadoopDist=<path-to-hadoop-tarball> [--cluster=CLUSTER_NAME] [--nodes=N] [--rebuild] [--format]"
     echo
-    echo "--hadoopDir  Path to hadoop home dir"
-    echo "--cluster    Name of cluster"
-    echo "--nodes      Specify the number of total nodes"
-    echo "--rebuild    Rebuild hadoop. Namenode is formatted"
-    echo "--format     Format the Namenode"
+    echo "--hadoopDist   Path to the hadoop tarball"
+    echo "--cluster      Name of cluster"
+    echo "--nodes        Specify the number of total nodes"
+    echo "--rebuild      Rebuild hadoop. Namenode is formatted"
+    echo "--format       Format the Namenode"
 }
 
 function parse_arguments() {
@@ -41,8 +41,8 @@ function parse_arguments() {
             --cluster)
                 CLUSTER=$VALUE
                 ;;
-            --hadoopDir)
-                HADOOP_DIR=$VALUE
+            --hadoopDist)
+                HADOOP_DIST=$VALUE
                 ;;
             *)
                 echo "ERROR: unknown parameter \"$PARAM\""
@@ -52,10 +52,14 @@ function parse_arguments() {
         esac
         shift
     done
-    if [ "$HADOOP_DIR" == '' ]; then
-    	echo "Error: Hadoop Dir needs to be specified"
+    if [[ -z "${HADOOP_DIST}" ]]; then
+	echo "Error: Hadoop Distribution Tarball must be specified"
     	usage
     	exit 1
+    fi
+    if [[ ! -f ${HADOOP_DIST}"" ]]; then
+        echo "Error: Specified Hadoop Distribution does not exist: ${HADOOP_DIST}"
+        exit 1
     fi
 }
 
@@ -82,12 +86,13 @@ function build_hadoop() {
             docker build -t caochong-base .
         fi
 
-        mkdir tmp
+        rm -rf tmp/hadoop/
+        mkdir -p tmp/hadoop/
 
         # Prepare hadoop packages and configuration files
-        echo $HADOOP_DIR
-        cp -r $HADOOP_DIR tmp/hadoop
-        cp hadoopconf/* tmp/hadoop/etc/hadoop/
+        echo "Extracting hadoop tarball: ${HADOOP_DIST}"
+        tar --strip 1 -C tmp/hadoop/ -xf ${HADOOP_DIST}
+        cp -r hadoopconf/* tmp/hadoop/etc/hadoop
 
         # Generate docker file for hadoop
 cat > tmp/Dockerfile << EOF
@@ -95,21 +100,36 @@ cat > tmp/Dockerfile << EOF
 
         ENV HADOOP_HOME $HADOOP_HOME
         ADD hadoop $HADOOP_HOME
-        ENV HADOOP_CONF_DIR /hadoop/etc/hadoop
-        ENV HDFS_NAMENODE_USER hdfs
-        ENV HDFS_DATANODE_USER hdfs
-        ENV HDFS_JOURNALNODE_USER hdfs
-        ENV HDFS_ZKFC_USER hdfs
-        ENV HDFS_SECONDARYNAMENODE_USER hdfs
-        ENV PATH "\$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin"
+        ENV HADOOP_CONF_DIR=/hadoop/etc/hadoop \
+            HADOOP_NAMENODE_USER=hdfs \
+            HADOOP_DATANODE_USER=hdfs \
+            HDFS_DATANODE_USER=hdfs \
+            HDFS_JOURNALNODE_USER=hdfs \
+            HDFS_NAMENODE_USER=hdfs \
+            HDFS_SECONDARYNAMENODE_USER=hdfs \
+            HDFS_ZKFC_USER=hdfs \
+            PATH="\$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin"
 
-        RUN adduser --disabled-password --gecos '' hdfs
-        RUN chown -R hdfs $HADOOP_HOME
+        RUN adduser --disabled-password --gecos '' hdfs && \
+            chown -R hdfs $HADOOP_HOME
         USER hdfs
         ENV PATH "\$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin"
-        RUN ssh-keygen -t rsa -f ~/.ssh/id_rsa -P '' && \
-            cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
+        RUN mkdir -p ~/.ssh && \
+            chmod 700 ~/.ssh && \
+            ssh-keygen -t rsa -f ~/.ssh/id_rsa -P '' && \
+            cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys && \
+            echo 'Host *' >> ~/.ssh/config && \
+            echo '  StrictHostKeyChecking no' >> ~/.ssh/config && \
+            echo '  UserKnownHostsFile=/dev/null' >> ~/.ssh/config && \
+            echo >> ~/.ssh/config
         USER root
+        RUN mkdir -p ~/.ssh && \
+            chmod 700 ~/.ssh && \
+            echo 'Host *' >> ~/.ssh/config && \
+            echo '  StrictHostKeyChecking no' >> ~/.ssh/config && \
+            echo '  UserKnownHostsFile=/dev/null' >> ~/.ssh/config && \
+            echo >> ~/.ssh/config
+
 EOF
         echo "Building image for hadoop"
         docker rmi -f caochong-hadoop $CLUSTER
@@ -193,10 +213,10 @@ docker cp hosts $CLUSTER-node-1:$HADOOP_HOME/etc/hadoop/slaves
 
 if [[ "${FORMAT}" = "1" ]]; then
     echo "----------Formatting the Namenode----------"
-    docker exec -it -u root $CLUSTER-node-1 $HADOOP_HOME/bin/hdfs namenode -format
+    docker exec -it -u hdfs $CLUSTER-node-1 $HADOOP_HOME/bin/hdfs namenode -format
 
     echo "----------Starting dfs----------"
-    docker exec -it $CLUSTER-node-1 $HADOOP_HOME/sbin/start-dfs.sh
+    docker exec -it -u hdfs $CLUSTER-node-1 $HADOOP_HOME/sbin/start-dfs.sh
 fi
 
 print_node_info
