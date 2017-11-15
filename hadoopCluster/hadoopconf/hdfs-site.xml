@@ -20,4 +20,12 @@
 		<name>dfs.namenode.handler.count</name>
 		<value>10</value>
 	</property>
+	<property>
+		<name>dfs.namenode.http-address</name>
+		<value>0.0.0.0:9870</value>
+	</property>
+	<property>
+		<name>dfs.datanode.http-address</name>
+		<value>0.0.0.0:9864</value>
+	</property>
 </configuration>
