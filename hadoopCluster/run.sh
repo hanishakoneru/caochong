@@ -53,7 +53,7 @@ function parse_arguments() {
         shift
     done
     if [[ -z "${HADOOP_DIST}" ]]; then
-	echo "Error: Hadoop Distribution Tarball must be specified"
+    	echo "Error: Hadoop Distribution Tarball must be specified"
     	usage
     	exit 1
     fi
