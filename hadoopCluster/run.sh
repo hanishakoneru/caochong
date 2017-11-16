@@ -113,7 +113,8 @@ cat > tmp/Dockerfile << EOF
         RUN adduser --disabled-password --gecos '' hdfs && \
             chown -R hdfs $HADOOP_HOME
         USER hdfs
-        ENV PATH "\$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin"
+        ENV HADOOP_HOME=$HADOOP_HOME
+        ENV PATH="\$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin"
         RUN mkdir -p ~/.ssh && \
             chmod 700 ~/.ssh && \
             ssh-keygen -t rsa -f ~/.ssh/id_rsa -P '' && \
@@ -129,6 +130,7 @@ cat > tmp/Dockerfile << EOF
             echo '  StrictHostKeyChecking no' >> ~/.ssh/config && \
             echo '  UserKnownHostsFile=/dev/null' >> ~/.ssh/config && \
             echo >> ~/.ssh/config
+        RUN echo "export PATH=\$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin" >> ~hdfs/.bash_profile
 
 EOF
         echo "Building image for hadoop"
@@ -192,10 +194,14 @@ do
     	fi
     fi
     
-    port=$((i+9869))
-    port_router=$((i+50070))
-    
-    container_id=$(docker run -d -v ${VOLUMES[$((i-1))]}/nn:/data/nn -v ${VOLUMES[$((i-1))]}/dn:/data/dn -v ${VOLUMES[$((i-1))]}/jn:/data/jn -p 127.0.0.1:$port:9870 -p 127.0.0.1:$port_router:50071 --net caochong --name $CLUSTER-node-$i caochong-hadoop)
+    # Expose NameNode ports starting at local port 9870
+    # Expose DataNode ports starting at local port 9970
+    nn_port=$((i+9869))
+    dn_port=$((i+9969))
+
+    # Start container.
+
+    container_id=$(docker run -d -v ${VOLUMES[$((i-1))]}/nn:/data/nn -v ${VOLUMES[$((i-1))]}/dn:/data/dn -v ${VOLUMES[$((i-1))]}/jn:/data/jn -p 127.0.0.1:${nn_port}:9870 -p 127.0.0.1:${dn_port}:9864 --net caochong --name ${CLUSTER}-node-${i} caochong-hadoop)
     
     echo "Node "$i "=>" ${container_id:0:12}
     NODES[$INDEX]="$CLUSTER"-node-"$i ${container_id:0:12}"
